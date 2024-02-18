@@ -13,11 +13,13 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "outDir": "dist",
+    "sourceRoot": "src",
     "removeComments": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "sourceMap": true,
     "strict": true,
+    "noImplicitAny": true,
     "strictPropertyInitialization": false,
     "target": "ES2020"
   },
