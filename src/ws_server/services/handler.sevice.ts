@@ -56,9 +56,9 @@ export class RequestHandler {
 
   private createUser(req: Request.IRegistration, ws: WebSocketCustom): void {
     try {
-      // TO DO USER VALIDATION NAME OR PASSWORD
       const { type, data } = req;
       const index = this.findUserIndex(data) ?? this.users.size;
+      const error = this.validateUser(data);
       const user = this.users.get(index);
 
       const response: Response.IRegistration = {
@@ -71,6 +71,16 @@ export class RequestHandler {
         },
         id: index,
       };
+
+      if (error) {
+        response.data.error = true;
+        response.data.errorText = error.message;
+
+        const res = stringifyResponse(response);
+        ws.send(res);
+
+        return;
+      }
 
       if (user && this.sockets.get(index)?.readyState === WebSocket.OPEN) {
         response.data.error = true;
@@ -384,6 +394,21 @@ export class RequestHandler {
     for (const [index, user] of this.users) {
       if (user.name === name && user.password === password) {
         return index;
+      }
+    }
+
+    return null;
+  }
+
+  private validateUser(data: {
+    name: string;
+    password: string;
+  }): { message: string } | null {
+    const { name, password } = data;
+
+    for (const [, user] of this.users) {
+      if (user.name === name && user.password !== password) {
+        return { message: 'Password is not valid!' };
       }
     }
 
