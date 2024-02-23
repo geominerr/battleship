@@ -11,7 +11,7 @@ export class RequestHandler {
   users: Map<number, IUser>;
   rooms: Map<number, IRoomUser[]>;
   games: Map<number, GameBoard>;
-  sockets: Map<number, WebSocket>;
+  sockets: Map<number, WebSocketCustom>;
 
   constructor() {
     this.users = new Map();
@@ -27,6 +27,9 @@ export class RequestHandler {
       console.log('Request: ', req);
 
       switch (type) {
+        case 'single_play':
+          this.singlePlay(ws);
+          break;
         case 'reg':
           this.createUser(req, ws);
           break;
@@ -37,13 +40,13 @@ export class RequestHandler {
           this.addUserToRoom(req, ws.id);
           break;
         case 'add_ships':
-          this.addShips(req, ws.id);
+          this.addShips(req, ws.id, ws?.botMode);
           break;
         case 'attack':
-          this.attack(req);
+          this.attack(req, ws?.botMode);
           break;
         case 'randomAttack':
-          this.randomAttack(req);
+          this.randomAttack(req, ws?.botMode);
           break;
         default:
           ws.send('Unknown Command');
@@ -112,6 +115,16 @@ export class RequestHandler {
     }
   }
 
+  private singlePlay(ws: WebSocketCustom): void {
+    ws.botMode = true;
+    const { id, botMode } = ws;
+
+    // not the best decision))
+    const idBot = id + 10000;
+    this.createGame([id, idBot], botMode);
+    this.rooms.delete(id);
+  }
+
   private updateRooms(): void {
     try {
       const listActiveRoomsWithOnePlayer = [...this.rooms]
@@ -172,7 +185,7 @@ export class RequestHandler {
     });
   }
 
-  private createGame(ids: number[]): void {
+  private createGame(ids: number[], botMode?: boolean): void {
     const idGame = this.games.size;
     const gameboard = new GameBoard(ids);
     this.games.set(idGame, gameboard);
@@ -189,7 +202,15 @@ export class RequestHandler {
     ids.forEach((id) => {
       res.data.idPlayer = id;
       const transformedRes = stringifyResponse(res);
-      this.sockets.get(id)?.send(transformedRes);
+      const socket = this.sockets.get(id);
+
+      if (!botMode) {
+        if (socket?.botMode) {
+          socket.botMode = false;
+        }
+      }
+
+      socket?.send(transformedRes);
     });
   }
 
@@ -230,12 +251,16 @@ export class RequestHandler {
     this.updateRooms();
   }
 
-  private addShips(req: Request.IAddShips, idPlayer: number): void {
+  private addShips(
+    req: Request.IAddShips,
+    idPlayer: number,
+    botMode?: boolean,
+  ): void {
     const { gameId, ships } = req.data;
     const gameBoard = this.games.get(gameId);
 
     if (gameBoard) {
-      const dataBoard = gameBoard.addShips(idPlayer, ships);
+      const dataBoard = gameBoard.addShips(idPlayer, ships, botMode);
 
       if (dataBoard) {
         const response: Response.IStartGame = {
@@ -262,7 +287,7 @@ export class RequestHandler {
     }
   }
 
-  private attack(req: Request.IAttack): void {
+  private attack(req: Request.IAttack, botMode?: boolean): void {
     const { x, y, indexPlayer, gameId } = req.data;
     const game = this.games.get(gameId);
 
@@ -280,6 +305,7 @@ export class RequestHandler {
           errorMessage,
           cellsAround,
           winner,
+          nextBot,
         } = gameRes;
 
         if (error) {
@@ -341,16 +367,31 @@ export class RequestHandler {
             });
           });
 
-          return;
+          if (!nextBot) {
+            return;
+          }
         }
 
         const messageTurn = this.createTurnResponse(nextPlayerID);
         playerIds.forEach((id) => this.sockets.get(id)?.send(messageTurn));
+
+        if (botMode) {
+          if (nextBot) {
+            const fakeRandomReq: Request.IRandomAttack = {
+              type: 'randomAttack',
+              data: { gameId, indexPlayer: nextPlayerID },
+              id: 0,
+            };
+            setTimeout(() => {
+              this.randomAttack(fakeRandomReq, true);
+            }, 1100);
+          }
+        }
       }
     }
   }
 
-  private randomAttack(req: Request.IRandomAttack): void {
+  private randomAttack(req: Request.IRandomAttack, botMode?: boolean): void {
     const { gameId, indexPlayer } = req.data;
     const game = this.games.get(gameId);
     const fakeRequest: Request.IAttack = {
@@ -370,7 +411,7 @@ export class RequestHandler {
       fakeRequest.data.y = y;
     }
 
-    this.attack(fakeRequest);
+    this.attack(fakeRequest, botMode);
   }
 
   private createTurnResponse(id: number): string {

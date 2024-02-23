@@ -33,6 +33,7 @@ interface IGameRes {
   errorMessage: string;
   cellsAround?: ICellAround[];
   winner?: { id: number };
+  nextBot?: boolean;
 }
 
 interface ICellAround {
@@ -43,5 +44,15 @@ interface ICellAround {
 type CellStateType = 'empty' | 'miss' | 'shot' | 'ship';
 type ShipType = 'small' | 'medium' | 'large' | 'huge';
 type StatusType = 'miss' | 'killed' | 'shot';
+type PressetTuple = [number, number, boolean, number, ShipType];
 
-export { IShip, IShot, IShipState, ICell, IGameRes, ICellAround, StatusType };
+export {
+  IShip,
+  IShot,
+  IShipState,
+  ICell,
+  IGameRes,
+  ICellAround,
+  StatusType,
+  PressetTuple,
+};

@@ -61,13 +61,20 @@ interface IRandomAttack {
   id: number;
 }
 
+interface ISinglePlay {
+  type: 'single_play';
+  data: '';
+  id: number;
+}
+
 type RequestType =
   | IRegistration
   | ICreateRoom
   | IAddUserToRoom
   | IAddShips
   | IAttack
-  | IRandomAttack;
+  | IRandomAttack
+  | ISinglePlay;
 
 export {
   IRegistration,
@@ -76,5 +83,6 @@ export {
   IAddShips,
   IAttack,
   IRandomAttack,
+  ISinglePlay,
   RequestType,
 };

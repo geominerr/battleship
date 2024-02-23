@@ -1,4 +1,6 @@
 import { Ship } from './ship';
+import { generateShips } from '../utils/ship-generator.util';
+import { showBoard } from '../utils/show-bot-board.utils';
 import {
   ICell,
   IGameRes,
@@ -13,6 +15,7 @@ export class GameBoard {
   ids: number[];
   boardSize: number = 10;
   currentPlayerID: number = 0;
+  idBot: number = 0;
 
   constructor(ids: number[]) {
     this.boards = new Map();
@@ -27,9 +30,26 @@ export class GameBoard {
   public addShips(
     idPlayer: number,
     ships: IShip[],
+    botMode?: boolean,
   ): [number, IShip[]][] | null {
     this.createBoard(idPlayer, ships);
     this.ships.set(idPlayer, ships);
+
+    if (botMode) {
+      const idBot = this.getEnemyId(idPlayer);
+      const shipsBot = generateShips();
+
+      if (idBot) {
+        this.idBot = idBot;
+        this.createBoard(idBot, shipsBot);
+        this.ships.set(idBot, shipsBot);
+        const board = this.boards.get(idBot);
+
+        if (board) {
+          showBoard(board);
+        }
+      }
+    }
 
     if (this.boards.size === 2) {
       this.currentPlayerID = idPlayer;
@@ -47,6 +67,7 @@ export class GameBoard {
       status: 'miss',
       error: false,
       errorMessage: '',
+      nextBot: false,
     };
 
     if (this.currentPlayerID !== idPlayer) {
@@ -75,6 +96,7 @@ export class GameBoard {
                 ...response,
                 nextPlayerID: enemyId,
                 status: 'miss',
+                nextBot: this.idBot === enemyId,
               };
             case 'shot':
               cell.state = 'shot';
@@ -84,6 +106,7 @@ export class GameBoard {
                 ...response,
                 nextPlayerID: enemyId,
                 status: 'shot',
+                nextBot: this.idBot === enemyId,
               };
 
             case 'empty':
@@ -93,6 +116,7 @@ export class GameBoard {
               return {
                 ...response,
                 nextPlayerID: enemyId,
+                nextBot: this.idBot === enemyId,
               };
             case 'ship':
               cell.state = 'shot';
@@ -129,10 +153,16 @@ export class GameBoard {
                   nextPlayerID: idPlayer,
                   status: 'killed',
                   cellsAround,
+                  nextBot: this.idBot === idPlayer,
                 };
               }
 
-              return { ...response, nextPlayerID: idPlayer, status: 'shot' };
+              return {
+                ...response,
+                nextPlayerID: idPlayer,
+                status: 'shot',
+                nextBot: this.idBot === idPlayer,
+              };
             default:
               return {
                 ...response,
@@ -236,6 +266,12 @@ export class GameBoard {
                     status: 'miss',
                     position: { x, y },
                   });
+
+                  const missCell = board[x]?.[y];
+
+                  if (missCell) {
+                    missCell.state = 'miss';
+                  }
                 }
               }
             }
@@ -243,7 +279,7 @@ export class GameBoard {
         }
       }
     }
-    console.log(unshotCoordinates);
+
     return unshotCoordinates;
   }
 
