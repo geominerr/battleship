@@ -155,13 +155,14 @@ export class GameBoard {
   public generateRandomAttack(idPlayer: number): IShot {
     const { boardSize } = this;
     const enemyId = this.getEnemyId(idPlayer);
-    let shot: IShot = { x: 0, y: 1 };
+    let shot: IShot = {} as IShot;
+    let flag: boolean = true;
 
     if (typeof enemyId === 'number') {
       const board = this.boards.get(enemyId);
 
       if (board) {
-        while (!shot.x) {
+        while (flag) {
           const x = Math.floor(Math.random() * boardSize);
           const y = Math.floor(Math.random() * boardSize);
 
@@ -170,6 +171,7 @@ export class GameBoard {
             board[x]?.[y]?.state !== 'shot'
           ) {
             shot = { x, y };
+            flag = false;
           }
         }
       }
@@ -222,13 +224,14 @@ export class GameBoard {
         const cell = board?.[i]?.[j];
 
         if (cell && cell.shipId === shipId) {
+          unshotCoordinates.push({
+            status: 'killed',
+            position: { x: i, y: j },
+          });
           for (let x = i - 1; x <= i + 1; x += 1) {
             for (let y = j - 1; y <= j + 1; y += 1) {
               if (x >= 0 && x < boardSize && y >= 0 && y < boardSize) {
-                if (
-                  board[x]?.[y]?.state !== 'miss' &&
-                  board[x]?.[y]?.state !== 'shot'
-                ) {
+                if (board?.[x]?.[y] && board[x]?.[y]?.state !== 'shot') {
                   unshotCoordinates.push({
                     status: 'miss',
                     position: { x, y },
@@ -240,35 +243,7 @@ export class GameBoard {
         }
       }
     }
-    // debugger;
-    // console.log('BEFORE UPDATE');
-    // console.table(board.map((arr) => arr.map((cell) => cell.state)));
-    // console.table(board.map((arr) => arr.map((cell) => cell.shipId || 0)));
-
-    // console.log(' COORDINATES', unshotCoordinates);
-    // console.log(' COORDINATES UNIC', [...new Set(unshotCoordinates)]);
-    // const ids: number[] = [];
-
-    // unshotCoordinates.forEach(({ position }, index) => {
-    //   console.log('POSITION', position, 'ID', index, '\nTable defore mutation');
-    //   console.table(board.map((arr) => arr.map((cell) => cell.state)));
-    //   const { x, y } = position;
-    //   const cell = board[x]?.[y];
-
-    //   if (cell) {
-    //     cell.state = 'miss';
-    //     ids.push(index);
-    //   }
-    //   console.log('POSITION', position, 'ID', index, '\nTable defore mutation');
-    //   console.table(board.map((arr) => arr.map((cell) => cell.state)));
-    // });
-    // console.log('IDS', ids);
-    // console.log('AFTER UPDATE');
-    // console.table(board.map((arr) => arr.map((cell) => cell.shipId || 0)));
-    // console.table(board.map((arr) => arr.map((cell) => cell.state)));
-
-    // console.table(unshotCoordinates);
-
+    console.log(unshotCoordinates);
     return unshotCoordinates;
   }
 
