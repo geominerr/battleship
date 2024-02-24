@@ -2,6 +2,7 @@ import { WebSocket } from 'ws';
 
 import { GameBoard } from '../game/gameboard';
 import { parseRequest, stringifyResponse } from '../utils/transform.util';
+
 import { IUser, IRoomUser } from '../models/request-handler.model';
 import * as Request from '../models/request.model';
 import * as Response from '../models/response.model';
@@ -85,16 +86,6 @@ export class RequestHandler {
         return;
       }
 
-      if (user && this.sockets.get(index)?.readyState === WebSocket.OPEN) {
-        response.data.error = true;
-        response.data.errorText = `${data.name} user has an active connection ^_^ Close active tab  ^_^ `;
-
-        const res = stringifyResponse(response);
-        ws.send(res);
-
-        return;
-      }
-
       ws.id = index;
       this.users.set(index, user || { ...req.data, wins: 0 });
       this.sockets.set(index, ws);
@@ -116,13 +107,17 @@ export class RequestHandler {
   }
 
   private singlePlay(ws: WebSocketCustom): void {
-    ws.botMode = true;
-    const { id, botMode } = ws;
+    try {
+      ws.botMode = true;
+      const { id, botMode } = ws;
 
-    // not the best decision))
-    const idBot = id + 10000;
-    this.createGame([id, idBot], botMode);
-    this.rooms.delete(id);
+      // not the best decision))
+      const idBot = id + 10000;
+      this.createGame([id, idBot], botMode);
+      this.rooms.delete(id);
+    } catch (err) {
+      throw err;
+    }
   }
 
   private updateRooms(): void {
@@ -154,101 +149,121 @@ export class RequestHandler {
   }
 
   private addWinner(idWinner: number): void {
-    const user = this.users.get(idWinner);
+    try {
+      const user = this.users.get(idWinner);
 
-    if (user) {
-      user.wins += 1;
+      if (user) {
+        user.wins += 1;
+      }
+    } catch (err) {
+      throw err;
     }
   }
 
   private updateWinners(): void {
-    const listWinners = [...this.users]
-      .map(([, { name, wins }]) => ({
-        name,
-        wins,
-      }))
-      .filter((user) => user.wins)
-      .sort((a, b) => b.wins - a.wins);
+    try {
+      const listWinners = [...this.users]
+        .map(([, { name, wins }]) => ({
+          name,
+          wins,
+        }))
+        .filter((user) => user.wins)
+        .sort((a, b) => b.wins - a.wins);
 
-    const response: Response.IUpdateWinners = {
-      type: 'update_winners',
-      data: listWinners,
-      id: 0,
-    };
+      const response: Response.IUpdateWinners = {
+        type: 'update_winners',
+        data: listWinners,
+        id: 0,
+      };
 
-    const transformedRes = stringifyResponse(response);
+      const transformedRes = stringifyResponse(response);
 
-    this.sockets.forEach((ws) => {
-      if (ws?.readyState === WebSocket.OPEN) {
-        ws.send(transformedRes);
-      }
-    });
+      this.sockets.forEach((ws) => {
+        if (ws?.readyState === WebSocket.OPEN) {
+          ws.send(transformedRes);
+        }
+      });
+    } catch (err) {
+      throw err;
+    }
   }
 
   private createGame(ids: number[], botMode?: boolean): void {
-    const idGame = this.games.size;
-    const gameboard = new GameBoard(ids);
-    this.games.set(idGame, gameboard);
+    try {
+      const idGame = this.games.size;
+      const gameboard = new GameBoard(ids);
+      this.games.set(idGame, gameboard);
 
-    const res: Response.ICreateGame = {
-      type: 'create_game',
-      data: {
-        idGame,
-        idPlayer: 0,
-      },
-      id: 0,
-    };
+      const res: Response.ICreateGame = {
+        type: 'create_game',
+        data: {
+          idGame,
+          idPlayer: 0,
+        },
+        id: 0,
+      };
 
-    ids.forEach((id) => {
-      res.data.idPlayer = id;
-      const transformedRes = stringifyResponse(res);
-      const socket = this.sockets.get(id);
+      ids.forEach((id) => {
+        res.data.idPlayer = id;
+        const transformedRes = stringifyResponse(res);
+        const socket = this.sockets.get(id);
 
-      if (!botMode) {
-        if (socket?.botMode) {
-          socket.botMode = false;
+        if (!botMode) {
+          if (socket?.botMode) {
+            socket.botMode = false;
+          }
         }
-      }
 
-      socket?.send(transformedRes);
-    });
+        socket?.send(transformedRes);
+      });
+    } catch (err) {
+      throw err;
+    }
   }
 
   private createRoom(idUser: number): void {
-    const name = this.users.get(idUser)?.name || 'Anonymous';
+    try {
+      const name = this.users.get(idUser)?.name || 'Anonymous';
 
-    this.rooms.set(idUser, [{ name, index: idUser }]);
+      this.rooms.set(idUser, [{ name, index: idUser }]);
 
-    this.updateRooms();
+      this.updateRooms();
+    } catch (err) {
+      throw err;
+    }
   }
 
   private addUserToRoom(req: Request.IAddUserToRoom, idPlayer: number): void {
-    const { indexRoom } = req.data;
-    const room = this.rooms.get(indexRoom);
-    const roomCreatorIndex = room?.[0]?.index;
-    const name = this.users.get(idPlayer)?.name;
+    try {
+      const { indexRoom } = req.data;
+      const room = this.rooms.get(indexRoom);
+      const roomCreatorIndex = room?.[0]?.index;
+      const name = this.users.get(idPlayer)?.name;
 
-    if (roomCreatorIndex === idPlayer) {
-      this.sockets
-        .get(idPlayer)
-        ?.send('"You cannot add yourself to the room you created!"');
+      if (roomCreatorIndex === idPlayer) {
+        this.sockets
+          .get(idPlayer)
+          ?.send('"You cannot add yourself to the room you created!"');
 
-      return;
+        return;
+      }
+
+      if (room && name) {
+        room.push({ name, index: idPlayer });
+        this.rooms.set(indexRoom, room);
+        this.rooms.delete(idPlayer);
+      }
+
+      const ids: number[] | undefined = room?.map((user) => user.index);
+
+      if (ids) {
+        this.createGame(ids);
+      }
+
+      this.updateRooms();
+    } catch (err) {
+      throw err;
     }
-
-    if (room && name) {
-      room.push({ name, index: idPlayer });
-      this.rooms.set(indexRoom, room);
-      this.rooms.delete(idPlayer);
-    }
-
-    const ids: number[] | undefined = room?.map((user) => user.index);
-
-    if (ids) {
-      this.createGame(ids);
-    }
-
-    this.updateRooms();
   }
 
   private addShips(
@@ -256,203 +271,235 @@ export class RequestHandler {
     idPlayer: number,
     botMode?: boolean,
   ): void {
-    const { gameId, ships } = req.data;
-    const gameBoard = this.games.get(gameId);
+    try {
+      const { gameId, ships } = req.data;
+      const gameBoard = this.games.get(gameId);
 
-    if (gameBoard) {
-      const dataBoard = gameBoard.addShips(idPlayer, ships, botMode);
+      if (gameBoard) {
+        const dataBoard = gameBoard.addShips(idPlayer, ships, botMode);
 
-      if (dataBoard) {
-        const response: Response.IStartGame = {
-          type: 'start_game',
-          data: { ships: [], currentPlayerIndex: 0 },
-          id: 0,
-        };
-        const messageTurn = this.createTurnResponse(idPlayer);
+        if (dataBoard) {
+          const response: Response.IStartGame = {
+            type: 'start_game',
+            data: { ships: [], currentPlayerIndex: 0 },
+            id: 0,
+          };
+          const messageTurn = this.createTurnResponse(idPlayer);
 
-        dataBoard.forEach(([id, ships]) => {
-          const res = stringifyResponse({
-            ...response,
-            data: { ships, currentPlayerIndex: id },
+          dataBoard.forEach(([id, ships]) => {
+            const res = stringifyResponse({
+              ...response,
+              data: { ships, currentPlayerIndex: id },
+            });
+
+            const socket = this.sockets.get(id);
+
+            if (socket) {
+              socket.send(res);
+              socket.send(messageTurn);
+            }
           });
-
-          const socket = this.sockets.get(id);
-
-          if (socket) {
-            socket.send(res);
-            socket.send(messageTurn);
-          }
-        });
+        }
       }
+    } catch (err) {
+      throw err;
     }
   }
 
   private attack(req: Request.IAttack, botMode?: boolean): void {
-    const { x, y, indexPlayer, gameId } = req.data;
-    const game = this.games.get(gameId);
+    try {
+      const { x, y, indexPlayer, gameId } = req.data;
+      const game = this.games.get(gameId);
 
-    if (game) {
-      const gameRes = game.attack(indexPlayer, {
-        x,
-        y,
-      });
-
-      if (gameRes) {
-        const {
-          nextPlayerID,
-          status,
-          error,
-          errorMessage,
-          cellsAround,
-          winner,
-          nextBot,
-        } = gameRes;
-
-        if (error) {
-          this.sockets.get(indexPlayer)?.send(errorMessage);
-
-          return;
-        }
-
-        const playerIds = game.getPlayers();
-        const response: Response.IAttackFeedback = {
-          type: 'attack',
-          data: {
-            position: {
-              x: x,
-              y: y,
-            },
-            currentPlayer: indexPlayer,
-            status: status,
-          },
-          id: 0,
-        };
-        const message = stringifyResponse(response);
-
-        playerIds.forEach((id) => {
-          this.sockets.get(id)?.send(message);
+      if (game) {
+        const gameRes = game.attack(indexPlayer, {
+          x,
+          y,
         });
 
-        if (winner) {
-          const winRes: Response.IFinishGame = {
-            type: 'finish',
-            data: { winPlayer: winner.id },
-            id: 0,
-          };
+        if (gameRes) {
+          const {
+            nextPlayerID,
+            status,
+            error,
+            errorMessage,
+            cellsAround,
+            winner,
+            nextBot,
+          } = gameRes;
 
-          const mesRes = stringifyResponse(winRes);
+          if (error) {
+            this.sockets.get(indexPlayer)?.send(errorMessage);
 
-          playerIds.forEach((id) => {
-            this.sockets.get(id)?.send(mesRes);
-          });
-          this.addWinner(winner.id);
-          this.updateWinners();
-
-          return;
-        }
-
-        if (cellsAround) {
-          cellsAround.forEach(({ status, position }) => {
-            const res: Response.IAttackFeedback = {
-              ...response,
-              data: { ...response.data, position, status },
-            };
-
-            const message = stringifyResponse(res);
-
-            playerIds.forEach((id) => {
-              this.sockets.get(id)?.send(message);
-              const messageTurn = this.createTurnResponse(nextPlayerID);
-              this.sockets.get(id)?.send(messageTurn);
-            });
-          });
-
-          if (!nextBot) {
             return;
           }
-        }
 
-        const messageTurn = this.createTurnResponse(nextPlayerID);
-        playerIds.forEach((id) => this.sockets.get(id)?.send(messageTurn));
+          const playerIds = game.getPlayers();
+          const response: Response.IAttackFeedback = {
+            type: 'attack',
+            data: {
+              position: {
+                x: x,
+                y: y,
+              },
+              currentPlayer: indexPlayer,
+              status: status,
+            },
+            id: 0,
+          };
+          const message = stringifyResponse(response);
 
-        if (botMode) {
-          if (nextBot) {
-            const fakeRandomReq: Request.IRandomAttack = {
-              type: 'randomAttack',
-              data: { gameId, indexPlayer: nextPlayerID },
+          playerIds.forEach((id) => {
+            this.sockets.get(id)?.send(message);
+          });
+
+          if (winner) {
+            const winRes: Response.IFinishGame = {
+              type: 'finish',
+              data: { winPlayer: winner.id },
               id: 0,
             };
-            setTimeout(() => {
-              this.randomAttack(fakeRandomReq, true);
-            }, 1100);
+
+            const mesRes = stringifyResponse(winRes);
+
+            playerIds.forEach((id) => {
+              this.sockets.get(id)?.send(mesRes);
+            });
+            this.addWinner(winner.id);
+            this.updateWinners();
+
+            return;
+          }
+
+          if (cellsAround) {
+            cellsAround.forEach(({ status, position }) => {
+              const res: Response.IAttackFeedback = {
+                ...response,
+                data: { ...response.data, position, status },
+              };
+
+              const message = stringifyResponse(res);
+
+              playerIds.forEach((id) => {
+                this.sockets.get(id)?.send(message);
+                const messageTurn = this.createTurnResponse(nextPlayerID);
+                this.sockets.get(id)?.send(messageTurn);
+              });
+            });
+
+            if (!nextBot) {
+              return;
+            }
+          }
+
+          const messageTurn = this.createTurnResponse(nextPlayerID);
+          playerIds.forEach((id) => this.sockets.get(id)?.send(messageTurn));
+
+          if (botMode) {
+            if (nextBot) {
+              const fakeRandomReq: Request.IRandomAttack = {
+                type: 'randomAttack',
+                data: { gameId, indexPlayer: nextPlayerID },
+                id: 0,
+              };
+              setTimeout(() => {
+                this.randomAttack(fakeRandomReq, true);
+              }, 1100);
+            }
           }
         }
       }
+    } catch (err) {
+      throw err;
     }
   }
 
   private randomAttack(req: Request.IRandomAttack, botMode?: boolean): void {
-    const { gameId, indexPlayer } = req.data;
-    const game = this.games.get(gameId);
-    const fakeRequest: Request.IAttack = {
-      type: 'attack',
-      data: {
-        indexPlayer: indexPlayer,
-        gameId: gameId,
-        x: 0,
-        y: 0,
-      },
-      id: 0,
-    };
+    try {
+      const { gameId, indexPlayer } = req.data;
+      const game = this.games.get(gameId);
+      const fakeRequest: Request.IAttack = {
+        type: 'attack',
+        data: {
+          indexPlayer: indexPlayer,
+          gameId: gameId,
+          x: 0,
+          y: 0,
+        },
+        id: 0,
+      };
 
-    if (game) {
-      const { x, y } = game.generateRandomAttack(indexPlayer);
-      fakeRequest.data.x = x;
-      fakeRequest.data.y = y;
+      if (game) {
+        const { x, y } = game.generateRandomAttack(indexPlayer);
+        fakeRequest.data.x = x;
+        fakeRequest.data.y = y;
+      }
+
+      this.attack(fakeRequest, botMode);
+    } catch (err) {
+      throw err;
     }
-
-    this.attack(fakeRequest, botMode);
   }
 
   private createTurnResponse(id: number): string {
-    const response: Response.ITurnInfo = {
-      type: 'turn',
-      data: {
-        currentPlayer: id,
-      },
-      id: 0,
-    };
+    try {
+      const response: Response.ITurnInfo = {
+        type: 'turn',
+        data: {
+          currentPlayer: id,
+        },
+        id: 0,
+      };
 
-    return stringifyResponse(response);
+      return stringifyResponse(response);
+    } catch (err) {
+      throw err;
+    }
   }
 
   private findUserIndex(data: {
     name: string;
     password: string;
   }): number | null {
-    const { name, password } = data;
+    try {
+      const { name, password } = data;
 
-    for (const [index, user] of this.users) {
-      if (user.name === name && user.password === password) {
-        return index;
+      for (const [index, user] of this.users) {
+        if (user.name === name && user.password === password) {
+          return index;
+        }
       }
-    }
 
-    return null;
+      return null;
+    } catch (err) {
+      throw err;
+    }
   }
 
   private validateUser(data: {
     name: string;
     password: string;
   }): { message: string } | null {
-    const { name, password } = data;
+    try {
+      const { name, password } = data;
 
-    for (const [, user] of this.users) {
-      if (user.name === name && user.password !== password) {
-        return { message: 'Password is not valid!' };
+      for (const [id, user] of this.users) {
+        if (user.name === name && user.password !== password) {
+          return { message: 'Password is not valid!' };
+        }
+
+        if (user.name === name && user.password === password) {
+          if (this.sockets.get(id)?.readyState === WebSocket.OPEN) {
+            return {
+              message: `${name} user has an active connection ^_^ Close active tab  ^_^ `,
+            };
+          }
+        }
       }
-    }
 
-    return null;
+      return null;
+    } catch (err) {
+      throw err;
+    }
   }
 }

@@ -32,245 +32,263 @@ export class GameBoard {
     ships: IShip[],
     botMode?: boolean,
   ): [number, IShip[]][] | null {
-    this.createBoard(idPlayer, ships);
-    this.ships.set(idPlayer, ships);
+    try {
+      this.createBoard(idPlayer, ships);
+      this.ships.set(idPlayer, ships);
 
-    if (botMode) {
-      const idBot = this.getEnemyId(idPlayer);
-      const shipsBot = generateShips();
+      if (botMode) {
+        const idBot = this.getEnemyId(idPlayer);
+        const shipsBot = generateShips();
 
-      if (idBot) {
-        this.idBot = idBot;
-        this.createBoard(idBot, shipsBot);
-        this.ships.set(idBot, shipsBot);
-        const board = this.boards.get(idBot);
+        if (idBot) {
+          this.idBot = idBot;
+          this.createBoard(idBot, shipsBot);
+          this.ships.set(idBot, shipsBot);
+          const board = this.boards.get(idBot);
 
-        if (board) {
-          showBoard(board);
+          if (board) {
+            showBoard(board);
+          }
         }
       }
-    }
 
-    if (this.boards.size === 2) {
-      this.currentPlayerID = idPlayer;
-      return Array.from(this.ships.entries());
-    }
+      if (this.boards.size === 2) {
+        this.currentPlayerID = idPlayer;
+        return Array.from(this.ships.entries());
+      }
 
-    return null;
+      return null;
+    } catch (err) {
+      throw err;
+    }
   }
 
   public attack(idPlayer: number, shot: IShot): IGameRes {
-    const enemyId = this.getEnemyId(idPlayer);
-    const { x, y } = shot;
-    const response: IGameRes = {
-      nextPlayerID: 0,
-      status: 'miss',
-      error: false,
-      errorMessage: '',
-      nextBot: false,
-    };
-
-    if (this.currentPlayerID !== idPlayer) {
-      return {
-        ...response,
-        error: true,
-        errorMessage: '"It\'s another player\'s turn"',
+    try {
+      const enemyId = this.getEnemyId(idPlayer);
+      const { x, y } = shot;
+      const response: IGameRes = {
+        nextPlayerID: 0,
+        status: 'miss',
+        error: false,
+        errorMessage: '',
+        nextBot: false,
       };
-    }
 
-    if (typeof enemyId === 'number') {
-      const board = this.boards.get(enemyId);
+      if (this.currentPlayerID !== idPlayer) {
+        return {
+          ...response,
+          error: true,
+          errorMessage: '"It\'s another player\'s turn"',
+        };
+      }
 
-      if (board) {
-        const cell = board?.[x]?.[y];
+      if (typeof enemyId === 'number') {
+        const board = this.boards.get(enemyId);
 
-        if (cell) {
-          const { state } = cell;
+        if (board) {
+          const cell = board?.[x]?.[y];
 
-          switch (state) {
-            case 'miss':
-              cell.state = 'miss';
-              this.currentPlayerID = enemyId;
+          if (cell) {
+            const { state } = cell;
 
-              return {
-                ...response,
-                nextPlayerID: enemyId,
-                status: 'miss',
-                nextBot: this.idBot === enemyId,
-              };
-            case 'shot':
-              cell.state = 'shot';
-              this.currentPlayerID = enemyId;
+            switch (state) {
+              case 'miss':
+                cell.state = 'miss';
+                this.currentPlayerID = enemyId;
 
-              return {
-                ...response,
-                nextPlayerID: enemyId,
-                status: 'shot',
-                nextBot: this.idBot === enemyId,
-              };
+                return {
+                  ...response,
+                  nextPlayerID: enemyId,
+                  status: 'miss',
+                  nextBot: this.idBot === enemyId,
+                };
+              case 'shot':
+                cell.state = 'shot';
+                this.currentPlayerID = enemyId;
 
-            case 'empty':
-              cell.state = 'miss';
-              this.currentPlayerID = enemyId;
+                return {
+                  ...response,
+                  nextPlayerID: enemyId,
+                  status: 'shot',
+                  nextBot: this.idBot === enemyId,
+                };
 
-              return {
-                ...response,
-                nextPlayerID: enemyId,
-                nextBot: this.idBot === enemyId,
-              };
-            case 'ship':
-              cell.state = 'shot';
-              this.currentPlayerID = idPlayer;
+              case 'empty':
+                cell.state = 'miss';
+                this.currentPlayerID = enemyId;
 
-              const destroeydShipID = cell.instance?.makeDamage();
-              const ships = this.ships.get(enemyId);
+                return {
+                  ...response,
+                  nextPlayerID: enemyId,
+                  nextBot: this.idBot === enemyId,
+                };
+              case 'ship':
+                cell.state = 'shot';
+                this.currentPlayerID = idPlayer;
 
-              if (destroeydShipID || destroeydShipID === 0) {
-                if (ships) {
-                  const ship = ships[destroeydShipID];
+                const destroeydShipID = cell.instance?.makeDamage();
+                const ships = this.ships.get(enemyId);
 
-                  if (ship) {
-                    ship.length = 0;
+                if (destroeydShipID || destroeydShipID === 0) {
+                  if (ships) {
+                    const ship = ships[destroeydShipID];
+
+                    if (ship) {
+                      ship.length = 0;
+                    }
+
+                    if (ships.every(({ length }) => !length)) {
+                      return {
+                        ...response,
+                        nextPlayerID: idPlayer,
+                        status: 'killed',
+                        winner: { id: idPlayer },
+                      };
+                    }
                   }
 
-                  if (ships.every(({ length }) => !length)) {
-                    return {
-                      ...response,
-                      nextPlayerID: idPlayer,
-                      status: 'killed',
-                      winner: { id: idPlayer },
-                    };
-                  }
+                  const cellsAround = this.getSurroundingCoordinates(
+                    destroeydShipID,
+                    board,
+                  );
+
+                  return {
+                    ...response,
+                    nextPlayerID: idPlayer,
+                    status: 'killed',
+                    cellsAround,
+                    nextBot: this.idBot === idPlayer,
+                  };
                 }
-
-                const cellsAround = this.getSurroundingCoordinates(
-                  destroeydShipID,
-                  board,
-                );
 
                 return {
                   ...response,
                   nextPlayerID: idPlayer,
-                  status: 'killed',
-                  cellsAround,
+                  status: 'shot',
                   nextBot: this.idBot === idPlayer,
                 };
-              }
-
-              return {
-                ...response,
-                nextPlayerID: idPlayer,
-                status: 'shot',
-                nextBot: this.idBot === idPlayer,
-              };
-            default:
-              return {
-                ...response,
-                error: true,
-                errorMessage:
-                  '"Apparently I didn\'t take into account some case"',
-              };
+              default:
+                return {
+                  ...response,
+                  error: true,
+                  errorMessage:
+                    '"Apparently I didn\'t take into account some case"',
+                };
+            }
           }
         }
       }
-    }
 
-    return {
-      ...response,
-      error: true,
-      errorMessage: '"Unknown error :-)))"',
-    };
+      return {
+        ...response,
+        error: true,
+        errorMessage: '"Unknown error :-)))"',
+      };
+    } catch (err) {
+      throw err;
+    }
   }
 
   public generateRandomAttack(idPlayer: number): IShot {
-    const { boardSize } = this;
-    const enemyId = this.getEnemyId(idPlayer);
-    let shot: IShot = {} as IShot;
-    let flag: boolean = true;
+    try {
+      const { boardSize } = this;
+      const enemyId = this.getEnemyId(idPlayer);
+      let shot: IShot = {} as IShot;
+      let flag: boolean = true;
 
-    if (typeof enemyId === 'number') {
-      const board = this.boards.get(enemyId);
+      if (typeof enemyId === 'number') {
+        const board = this.boards.get(enemyId);
 
-      if (board) {
-        while (flag) {
-          const x = Math.floor(Math.random() * boardSize);
-          const y = Math.floor(Math.random() * boardSize);
+        if (board) {
+          while (flag) {
+            const x = Math.floor(Math.random() * boardSize);
+            const y = Math.floor(Math.random() * boardSize);
 
-          if (
-            board[x]?.[y]?.state !== 'miss' &&
-            board[x]?.[y]?.state !== 'shot'
-          ) {
-            shot = { x, y };
-            flag = false;
+            if (
+              board[x]?.[y]?.state !== 'miss' &&
+              board[x]?.[y]?.state !== 'shot'
+            ) {
+              shot = { x, y };
+              flag = false;
+            }
           }
         }
       }
-    }
 
-    return shot;
+      return shot;
+    } catch (err) {
+      throw err;
+    }
   }
 
   private createBoard(idPlayer: number, ships: IShip[]): void {
-    const field: ICell[][] = Array(this.boardSize)
-      .fill(0)
-      .map(() => Array(this.boardSize).fill({ state: 'empty' }));
+    try {
+      const field: ICell[][] = Array(this.boardSize)
+        .fill(0)
+        .map(() => Array(this.boardSize).fill({ state: 'empty' }));
 
-    ships.forEach((ship, index) => {
-      const { x, y } = ship.position;
-      const { length, direction } = ship;
-      const instance = new Ship(length, index);
+      ships.forEach((ship, index) => {
+        const { x, y } = ship.position;
+        const { length, direction } = ship;
+        const instance = new Ship(length, index);
 
-      for (let i = 0; i < length; i += 1) {
-        const coordinateX = direction ? x : x + i;
-        const coordinateY = direction ? y + i : y;
+        for (let i = 0; i < length; i += 1) {
+          const coordinateX = direction ? x : x + i;
+          const coordinateY = direction ? y + i : y;
 
-        if (field[coordinateY]) {
-          const subArr = field[coordinateX];
+          if (field[coordinateY]) {
+            const subArr = field[coordinateX];
 
-          if (subArr) {
-            subArr[coordinateY] = {
-              state: 'ship',
-              shipId: index,
-              instance: instance,
-            };
+            if (subArr) {
+              subArr[coordinateY] = {
+                state: 'ship',
+                shipId: index,
+                instance: instance,
+              };
+            }
           }
         }
-      }
-    });
+      });
 
-    this.boards.set(idPlayer, field);
+      this.boards.set(idPlayer, field);
+    } catch (err) {
+      throw err;
+    }
   }
 
   private getSurroundingCoordinates(
     shipId: number,
     board: ICell[][],
   ): ICellAround[] {
-    const { boardSize } = this;
+    try {
+      const { boardSize } = this;
 
-    const unshotCoordinates: ICellAround[] = [];
+      const unshotCoordinates: ICellAround[] = [];
 
-    for (let i = 0; i < boardSize; i += 1) {
-      for (let j = 0; j < boardSize; j += 1) {
-        const cell = board?.[i]?.[j];
+      for (let i = 0; i < boardSize; i += 1) {
+        for (let j = 0; j < boardSize; j += 1) {
+          const cell = board?.[i]?.[j];
 
-        if (cell && cell.shipId === shipId) {
-          unshotCoordinates.push({
-            status: 'killed',
-            position: { x: i, y: j },
-          });
-          for (let x = i - 1; x <= i + 1; x += 1) {
-            for (let y = j - 1; y <= j + 1; y += 1) {
-              if (x >= 0 && x < boardSize && y >= 0 && y < boardSize) {
-                if (board?.[x]?.[y] && board[x]?.[y]?.state !== 'shot') {
-                  unshotCoordinates.push({
-                    status: 'miss',
-                    position: { x, y },
-                  });
+          if (cell && cell.shipId === shipId) {
+            unshotCoordinates.push({
+              status: 'killed',
+              position: { x: i, y: j },
+            });
+            for (let x = i - 1; x <= i + 1; x += 1) {
+              for (let y = j - 1; y <= j + 1; y += 1) {
+                if (x >= 0 && x < boardSize && y >= 0 && y < boardSize) {
+                  if (board?.[x]?.[y] && board[x]?.[y]?.state !== 'shot') {
+                    unshotCoordinates.push({
+                      status: 'miss',
+                      position: { x, y },
+                    });
 
-                  const missCell = board[x]?.[y];
+                    const missCell = board[x]?.[y];
 
-                  if (missCell) {
-                    missCell.state = 'miss';
+                    if (missCell) {
+                      missCell.state = 'miss';
+                    }
                   }
                 }
               }
@@ -278,12 +296,18 @@ export class GameBoard {
           }
         }
       }
-    }
 
-    return unshotCoordinates;
+      return unshotCoordinates;
+    } catch (err) {
+      throw err;
+    }
   }
 
   getEnemyId(idPlayer: number): number | undefined {
-    return this.ids.filter((id) => id !== idPlayer)[0];
+    try {
+      return this.ids.filter((id) => id !== idPlayer)[0];
+    } catch (err) {
+      throw err;
+    }
   }
 }

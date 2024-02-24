@@ -1,19 +1,23 @@
 import { IShip, PressetTuple } from '../models/gameboard.model';
 
 export const generateShips = (): IShip[] => {
-  const length: number = pressets.length;
-  const index: number = Math.floor(Math.random() * length);
+  try {
+    const length: number = pressets.length;
+    const index: number = Math.floor(Math.random() * length);
 
-  return (
-    pressets[index]?.map(
-      (data: PressetTuple): IShip => ({
-        position: { x: data[0], y: data[1] },
-        direction: data[2],
-        length: data[3],
-        type: data[4],
-      }),
-    ) || []
-  );
+    return (
+      pressets[index]?.map(
+        (data: PressetTuple): IShip => ({
+          position: { x: data[0], y: data[1] },
+          direction: data[2],
+          length: data[3],
+          type: data[4],
+        }),
+      ) || []
+    );
+  } catch (err) {
+    throw err;
+  }
 };
 
 const pressets: PressetTuple[][] = [
