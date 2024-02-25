@@ -430,7 +430,7 @@ export class RequestHandler {
       };
 
       if (game) {
-        const { x, y } = game.generateRandomAttack(indexPlayer);
+        const { x, y } = game.generateRandomAttack(indexPlayer, botMode);
         fakeRequest.data.x = x;
         fakeRequest.data.y = y;
       }

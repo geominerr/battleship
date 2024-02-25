@@ -190,7 +190,7 @@ export class GameBoard {
     }
   }
 
-  public generateRandomAttack(idPlayer: number): IShot {
+  public generateRandomAttack(idPlayer: number, botMode?: boolean): IShot {
     try {
       const { boardSize } = this;
       const enemyId = this.getEnemyId(idPlayer);
@@ -204,10 +204,11 @@ export class GameBoard {
           while (flag) {
             const x = Math.floor(Math.random() * boardSize);
             const y = Math.floor(Math.random() * boardSize);
+            const cellState = board[x]?.[y]?.state;
 
             if (
-              board[x]?.[y]?.state !== 'miss' &&
-              board[x]?.[y]?.state !== 'shot'
+              (!botMode && cellState !== 'shot') ||
+              (botMode && cellState !== 'miss' && cellState !== 'shot')
             ) {
               shot = { x, y };
               flag = false;
@@ -278,17 +279,11 @@ export class GameBoard {
             for (let x = i - 1; x <= i + 1; x += 1) {
               for (let y = j - 1; y <= j + 1; y += 1) {
                 if (x >= 0 && x < boardSize && y >= 0 && y < boardSize) {
-                  if (board?.[x]?.[y] && board[x]?.[y]?.state !== 'shot') {
+                  if (board[x]?.[y]?.state !== 'shot') {
                     unshotCoordinates.push({
                       status: 'miss',
                       position: { x, y },
                     });
-
-                    const missCell = board[x]?.[y];
-
-                    if (missCell) {
-                      missCell.state = 'miss';
-                    }
                   }
                 }
               }
