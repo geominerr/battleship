@@ -1,3 +1,4 @@
+import { report, stdout } from 'process';
 import { WebSocket } from 'ws';
 
 import { GameBoard } from '../game/gameboard';
@@ -25,7 +26,7 @@ export class RequestHandler {
     try {
       const req: Request.RequestType = parseRequest(message);
       const { type } = req;
-      console.log('Request: ', req);
+      this.showToConsole('req', req);
 
       switch (type) {
         case 'single_play':
@@ -82,6 +83,7 @@ export class RequestHandler {
 
         const res = stringifyResponse(response);
         ws.send(res);
+        this.showToConsole('res', response);
 
         return;
       }
@@ -93,11 +95,15 @@ export class RequestHandler {
       const res = stringifyResponse(response);
 
       ws.send(res);
+      this.showToConsole('res', response);
       this.updateRooms();
       this.updateWinners();
 
       ws.on('close', () => {
-        console.log('WS connect closed', ws.id);
+        console.log(
+          `Connection for user \x1b[93m${data.name}\x1b[0m has been closed! WS id: `,
+          ws.id,
+        );
         this.sockets.delete(ws.id);
         this.updateRooms();
       });
@@ -143,7 +149,10 @@ export class RequestHandler {
         id: 0,
       };
 
-      this.sockets.forEach((socket) => socket.send(stringifyResponse(res)));
+      this.sockets.forEach((socket) => {
+        socket.send(stringifyResponse(res));
+        this.showToConsole('res', res);
+      });
     } catch (err) {
       throw err;
     }
@@ -182,6 +191,7 @@ export class RequestHandler {
       this.sockets.forEach((ws) => {
         if (ws?.readyState === WebSocket.OPEN) {
           ws.send(transformedRes);
+          this.showToConsole('res', response);
         }
       });
     } catch (err) {
@@ -216,6 +226,7 @@ export class RequestHandler {
         }
 
         socket?.send(transformedRes);
+        this.showToConsole('res', res);
       });
     } catch (err) {
       throw err;
@@ -242,10 +253,10 @@ export class RequestHandler {
       const name = this.users.get(idPlayer)?.name;
 
       if (roomCreatorIndex === idPlayer) {
-        this.sockets
-          .get(idPlayer)
-          ?.send('"You cannot add yourself to the room you created!"');
+        const message = '"You cannot add yourself to the room you created!"';
 
+        this.sockets.get(idPlayer)?.send(message);
+        this.showToConsole('res', message);
         return;
       }
 
@@ -296,8 +307,13 @@ export class RequestHandler {
             const socket = this.sockets.get(id);
 
             if (socket) {
-              socket.send(res);
-              socket.send(messageTurn);
+              // socket.send(res);
+              // socket.send(messageTurn);
+
+              [res, messageTurn].forEach((res) => {
+                socket.send(res);
+                this.showToConsole('res', res);
+              });
             }
           });
         }
@@ -331,7 +347,7 @@ export class RequestHandler {
 
           if (error) {
             this.sockets.get(indexPlayer)?.send(errorMessage);
-
+            this.showToConsole('res', errorMessage);
             return;
           }
 
@@ -352,6 +368,7 @@ export class RequestHandler {
 
           playerIds.forEach((id) => {
             this.sockets.get(id)?.send(message);
+            this.showToConsole('res', response);
           });
 
           if (winner) {
@@ -365,6 +382,7 @@ export class RequestHandler {
 
             playerIds.forEach((id) => {
               this.sockets.get(id)?.send(mesRes);
+              this.showToConsole('res', winRes);
             });
             this.addWinner(winner.id);
             this.updateWinners();
@@ -382,8 +400,10 @@ export class RequestHandler {
               const message = stringifyResponse(res);
 
               playerIds.forEach((id) => {
-                this.sockets.get(id)?.send(message);
                 const messageTurn = this.createTurnResponse(nextPlayerID);
+
+                this.sockets.get(id)?.send(message);
+
                 this.sockets.get(id)?.send(messageTurn);
               });
             });
@@ -394,7 +414,10 @@ export class RequestHandler {
           }
 
           const messageTurn = this.createTurnResponse(nextPlayerID);
-          playerIds.forEach((id) => this.sockets.get(id)?.send(messageTurn));
+          playerIds.forEach((id) => {
+            this.sockets.get(id)?.send(messageTurn);
+            this.showToConsole('res', messageTurn);
+          });
 
           if (botMode) {
             if (nextBot) {
@@ -502,5 +525,17 @@ export class RequestHandler {
     } catch (err) {
       throw err;
     }
+  }
+
+  private showToConsole(
+    type: 'res' | 'req',
+    data: Request.RequestType | Response.ResponseType | string,
+  ): void {
+    const mes =
+      type === 'req'
+        ? '\x1b[34m\nRequest from client: \x1b[0m'
+        : '\x1b[38;5;208m\nResponse from server: \x1b[0m';
+    stdout.write(mes);
+    console.log(data);
   }
 }
