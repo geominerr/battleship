@@ -115,6 +115,7 @@ export class RequestHandler {
       const idBot = id + 10000;
       this.createGame([id, idBot], botMode);
       this.rooms.delete(id);
+      this.updateRooms();
     } catch (err) {
       throw err;
     }
